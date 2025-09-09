@@ -1,48 +1,108 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using FluentAssertions;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Moq;
 using UserManagement.Models;
-using UserManagement.Services.Domain.Interfaces;
+using UserManagement.Services.Domain;
 using UserManagement.Web.Models.Users;
 using UserManagement.WebMS.Controllers;
+using Xunit;
 
-namespace UserManagement.Data.Tests;
-
-public class UserControllerTests
+namespace UserManagement.Web.Tests
 {
-    [Fact]
-    public void List_WhenServiceReturnsUsers_ModelMustContainUsers()
+    public class UsersControllerTests
     {
-        // Arrange: Initializes objects and sets the value of the data that is passed to the method under test.
-        var controller = CreateController();
-        var users = SetupUsers();
-
-        // Act: Invokes the method under test with the arranged parameters.
-        var result = controller.List();
-
-        // Assert: Verifies that the action of the method under test behaves as expected.
-        result.Model
-            .Should().BeOfType<UserListViewModel>()
-            .Which.Items.Should().BeEquivalentTo(users);
-    }
-
-    private User[] SetupUsers(string forename = "Johnny", string surname = "User", string email = "juser@example.com", bool isActive = true)
-    {
-        var users = new[]
+        [Fact]
+        public async Task List_NoStatus_ReturnsView_WithAllUsers()
         {
-            new User
+            // Arrange
+            var users = new List<User>
             {
-                Forename = forename,
-                Surname = surname,
-                Email = email,
-                IsActive = isActive
-            }
-        };
+                new() { Id = 1, Forename = "A", Surname = "One", Email = "a1@example.com", IsActive = true },
+                new() { Id = 2, Forename = "B", Surname = "Two", Email = "b2@example.com", IsActive = false }
+            };
 
-        _userService
-            .Setup(s => s.GetAll())
-            .Returns(users);
+            var svc = new Mock<IUserService>();
+            svc.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
+               .ReturnsAsync(users);
 
-        return users;
+            var logger = new Mock<ILogger<UsersController>>();
+            var controller = new UsersController(svc.Object, logger.Object);
+
+            // Act
+            var result = await controller.List(null, CancellationToken.None);
+
+            // Assert
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<UserListViewModel>(view.Model);
+            model.Items.Select(i => i.Email).Should().BeEquivalentTo(users.Select(u => u.Email));
+
+            svc.Verify(s => s.GetAllAsync(It.IsAny<CancellationToken>()), Times.Once);
+            svc.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task List_StatusActive_UsesActiveFilter_AndMapsModel()
+        {
+            // Arrange
+            var active = new List<User>
+            {
+                new() { Id = 10, Forename = "Active", Surname = "User", Email = "active@example.com", IsActive = true }
+            };
+
+            var svc = new Mock<IUserService>(MockBehavior.Strict);
+            svc.Setup(s => s.FilterByActiveAsync(true, It.IsAny<CancellationToken>()))
+               .ReturnsAsync(active);
+
+            var logger = new Mock<ILogger<UsersController>>();
+            var controller = new UsersController(svc.Object, logger.Object);
+
+            // Act
+            var result = await controller.List("active", CancellationToken.None);
+
+            // Assert
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<UserListViewModel>(view.Model);
+            model.Items.Should().HaveCount(1);
+            model.Items[0].Email.Should().Be("active@example.com");
+            model.Items[0].IsActive.Should().BeTrue();
+
+            svc.Verify(s => s.FilterByActiveAsync(true, It.IsAny<CancellationToken>()), Times.Once);
+            svc.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task List_StatusInactive_UsesInactiveFilter_AndMapsModel()
+        {
+            // Arrange
+            var inactive = new List<User>
+            {
+                new() { Id = 20, Forename = "Inactive", Surname = "User", Email = "inactive@example.com", IsActive = false }
+            };
+
+            var svc = new Mock<IUserService>(MockBehavior.Strict);
+            svc.Setup(s => s.FilterByActiveAsync(false, It.IsAny<CancellationToken>()))
+               .ReturnsAsync(inactive);
+
+            var logger = new Mock<ILogger<UsersController>>();
+            var controller = new UsersController(svc.Object, logger.Object);
+
+            // Act
+            var result = await controller.List("inactive", CancellationToken.None);
+
+            // Assert
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<UserListViewModel>(view.Model);
+            model.Items.Should().HaveCount(1);
+            model.Items[0].Email.Should().Be("inactive@example.com");
+            model.Items[0].IsActive.Should().BeFalse();
+
+            svc.Verify(s => s.FilterByActiveAsync(false, It.IsAny<CancellationToken>()), Times.Once);
+            svc.VerifyNoOtherCalls();
+        }
     }
-
-    private readonly Mock<IUserService> _userService = new();
-    private UsersController CreateController() => new(_userService.Object);
 }

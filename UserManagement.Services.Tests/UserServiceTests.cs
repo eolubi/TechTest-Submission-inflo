@@ -1,45 +1,63 @@
-using System.Linq;
-using UserManagement.Models;
-using UserManagement.Services.Domain.Implementations;
+using System.Threading;
+using System.Threading.Tasks;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Moq;
+using UserManagement.Data;
+using UserManagement.Services.Domain;
+using Xunit;
 
-namespace UserManagement.Data.Tests;
-
-public class UserServiceTests
+namespace UserManagement.Services.Tests
 {
-    [Fact]
-    public void GetAll_WhenContextReturnsEntities_MustReturnSameEntities()
+    public class UserServiceTests
     {
-        // Arrange: Initializes objects and sets the value of the data that is passed to the method under test.
-        var service = CreateService();
-        var users = SetupUsers();
-
-        // Act: Invokes the method under test with the arranged parameters.
-        var result = service.GetAll();
-
-        // Assert: Verifies that the action of the method under test behaves as expected.
-        result.Should().BeSameAs(users);
-    }
-
-    private IQueryable<User> SetupUsers(string forename = "Johnny", string surname = "User", string email = "juser@example.com", bool isActive = true)
-    {
-        var users = new[]
+        [Fact]
+        public async Task FilterByActiveAsync_True_ReturnsOnlyActive()
         {
-            new User
+            using var ctx = CreateCleanContext();
+            var logger = new Mock<ILogger<UserService>>().Object;
+            var sut = new UserService(ctx, logger);
+
+            var result = await sut.FilterByActiveAsync(true, CancellationToken.None);
+
+            result.Should().NotBeEmpty();
+            result.Should().OnlyContain(u => u.IsActive);
+        }
+
+        [Fact]
+        public async Task FilterByActiveAsync_False_ReturnsOnlyInactive()
+        {
+            using var ctx = CreateCleanContext();
+            var logger = new Mock<ILogger<UserService>>().Object;
+            var sut = new UserService(ctx, logger);
+
+            var result = await sut.FilterByActiveAsync(false, CancellationToken.None);
+
+            result.Should().NotBeEmpty();
+            result.Should().OnlyContain(u => !u.IsActive);
+        }
+
+        [Fact]
+        public async Task GetAllAsync_ReturnsSeededUsers()
+        {
+            using var ctx = CreateCleanContext();
+            var logger = new Mock<ILogger<UserService>>().Object;
+            var sut = new UserService(ctx, logger);
+
+            var result = await sut.GetAllAsync(CancellationToken.None);
+
+            result.Should().NotBeNull();
+            result.Count.Should().BeGreaterThan(0);
+        }
+
+        private static DataContext CreateCleanContext()
+        {
+            // ensure a clean in-memory DB per test run
+            using (var tmp = new DataContext())
             {
-                Forename = forename,
-                Surname = surname,
-                Email = email,
-                IsActive = isActive
+                tmp.Database.EnsureDeleted();
             }
-        }.AsQueryable();
-
-        _dataContext
-            .Setup(s => s.GetAll<User>())
-            .Returns(users);
-
-        return users;
+            return new DataContext();
+        }
     }
-
-    private readonly Mock<IDataContext> _dataContext = new();
-    private UserService CreateService() => new(_dataContext.Object);
 }

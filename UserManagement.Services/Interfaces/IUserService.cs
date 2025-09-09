@@ -1,15 +1,17 @@
 ﻿using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using UserManagement.Models;
 
-namespace UserManagement.Services.Domain.Interfaces;
+namespace UserManagement.Services.Domain;
 
-public interface IUserService 
+public interface IUserService
 {
-    /// <summary>
-    /// Return users by active state
-    /// </summary>
-    /// <param name="isActive"></param>
-    /// <returns></returns>
-    IEnumerable<User> FilterByActive(bool isActive);
-    IEnumerable<User> GetAll();
+    Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<User>> FilterByActiveAsync(bool isActive, CancellationToken ct = default);
+
+    Task<User?> GetByIdAsync(long id, CancellationToken ct = default);
+    Task CreateAsync(User user, CancellationToken ct = default);
+    Task UpdateAsync(User user, CancellationToken ct = default);
+    Task DeleteAsync(long id, CancellationToken ct = default);
 }

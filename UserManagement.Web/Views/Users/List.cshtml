@@ -1,5 +1,13 @@
 ﻿@model UserManagement.Web.Models.Users.UserListViewModel
 
+@{
+    var status = (string?)Context.Request.Query["status"];
+    Func<string, string> btnClass = s =>
+    ((string.IsNullOrEmpty(status) && s == "all") || status == s)
+    ? "btn btn-primary"
+    : "btn btn-outline-secondary"; // use btn-default if that's what your theme expects
+}
+
 <h2>User List</h2>
 
 <div class="table-responsive">
@@ -18,24 +26,15 @@
             @foreach (var item in Model.Items)
             {
                 <tr>
-                    <td>
-                        @item.Id
-                    </td>
-                    <td>
-                        @item.Forename
-                    </td>
-                    <td>
-                        @item.Surname
-                    </td>
-                    <td>
-                        @item.Email
-                    </td>
-                    <td>
-                        @(item.IsActive ? "Yes" : "No")
-                    </td>
+                    <td>@item.Id</td>
+                    <td>@item.Forename</td>
+                    <td>@item.Surname</td>
+                    <td>@item.Email</td>
+                    <td>@(item.IsActive ? "Yes" : "No")</td>
                     <td>
                         <div class="dropdown">
-                            <button type="button" class="btn btn-default dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="btnToggleActions">
+                            <button type="button" class="btn btn-default dropdown-toggle" data-bs-toggle="dropdown"
+                                aria-expanded="false" id="btnToggleActions">
                                 Actions
                             </button>
                             <ul class="dropdown-menu" aria-labelledby="btnToggleActions">
@@ -51,15 +50,12 @@
     </table>
 </div>
 
-<div>
+<div class="d-flex align-items-center">
     <div class="btn-group" role="group">
-        <a asp-controller="Users" asp-action="List" class="btn btn-default">Show All</a>
-        <a href="#" class="btn btn-default">Active Only</a>
-        <a href="#" class="btn btn-default">Non Active</a>
+        <a href="/users" class="@btnClass("all")">Show All</a>
+        <a href="/users?status=active" class="@btnClass("active")">Active Only</a>
+        <a href="/users?status=inactive" class="@btnClass("inactive")">Non Active</a>
     </div>
 
-    <a href="#" class="btn btn-primary float-end">
-        Add User
-    </a>
+    <a href="#" class="btn btn-primary ms-auto">Add User</a>
 </div>
-
